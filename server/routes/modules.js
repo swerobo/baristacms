@@ -21,6 +21,19 @@ export function createModuleRoutes(db) {
     }
   });
 
+  // Get modules enabled for mobile app
+  router.get('/app', async (req, res) => {
+    try {
+      const modules = await db.all('SELECT * FROM modules WHERE is_active = 1 AND use_in_app = 1 ORDER BY display_name');
+      modules.forEach(m => {
+        if (m.config) m.config = JSON.parse(m.config);
+      });
+      res.json(modules);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // Get module by name
   router.get('/:name', async (req, res) => {
     try {
@@ -111,7 +124,7 @@ export function createModuleRoutes(db) {
   router.put('/:name', async (req, res) => {
     try {
       const { name } = req.params;
-      const { displayName, description, icon, config, menuId, parentModuleId, fields } = req.body;
+      const { displayName, description, icon, config, menuId, parentModuleId, useInApp, fields } = req.body;
 
       const module = await db.get('SELECT * FROM modules WHERE name = ?', [name]);
       if (!module) {
@@ -120,9 +133,9 @@ export function createModuleRoutes(db) {
 
       await db.run(`
         UPDATE modules
-        SET display_name = ?, description = ?, icon = ?, config = ?, menu_id = ?, parent_module_id = ?, updated_at = CURRENT_TIMESTAMP
+        SET display_name = ?, description = ?, icon = ?, config = ?, menu_id = ?, parent_module_id = ?, use_in_app = ?, updated_at = CURRENT_TIMESTAMP
         WHERE name = ?
-      `, [displayName, description || null, icon || null, config ? JSON.stringify(config) : null, menuId || null, parentModuleId || null, name]);
+      `, [displayName, description || null, icon || null, config ? JSON.stringify(config) : null, menuId || null, parentModuleId || null, useInApp ? 1 : 0, name]);
 
       // Update fields if provided
       if (fields && Array.isArray(fields)) {

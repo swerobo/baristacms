@@ -82,6 +82,7 @@ export default function ModulesPage() {
   const [enableLabelPrint, setEnableLabelPrint] = useState(false);
   const [enableEmailInbox, setEnableEmailInbox] = useState(false);
   const [autoProcessEmails, setAutoProcessEmails] = useState(false);
+  const [useInApp, setUseInApp] = useState(false);
   const [menuId, setMenuId] = useState<number | null>(null);
   const [parentModuleId, setParentModuleId] = useState<number | null>(null);
   const [fields, setFields] = useState<FieldFormData[]>([]);
@@ -119,6 +120,7 @@ export default function ModulesPage() {
     setEnableLabelPrint(false);
     setEnableEmailInbox(false);
     setAutoProcessEmails(false);
+    setUseInApp(false);
     setMenuId(null);
     setParentModuleId(null);
     setFields([{ ...emptyField }]);
@@ -140,6 +142,7 @@ export default function ModulesPage() {
       setEnableLabelPrint(fullModule.config?.enableLabelPrint || false);
       setEnableEmailInbox(fullModule.config?.enableEmailInbox || false);
       setAutoProcessEmails(fullModule.config?.autoProcessEmails || false);
+      setUseInApp(fullModule.use_in_app === 1);
       setMenuId(fullModule.menu_id || null);
       setParentModuleId(fullModule.parent_module_id || null);
       setFields(
@@ -216,6 +219,7 @@ export default function ModulesPage() {
           config,
           menuId,
           parentModuleId,
+          useInApp,
           fields: processedFields,
         });
       } else {
@@ -620,6 +624,20 @@ export default function ModulesPage() {
                       </p>
                     </div>
                   )}
+                  <div className="pt-3 mt-3 border-t border-gray-200">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={useInApp}
+                        onChange={(e) => setUseInApp(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                      />
+                      <span className="text-sm font-medium text-gray-700">Enable in Mobile App</span>
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1 ml-6">
+                      Show this module in the BaristaCMS mobile app menu for CRUD operations
+                    </p>
+                  </div>
                 </div>
               </div>
 

@@ -356,6 +356,7 @@ async function runMigrations(db) {
     await db.safeAddColumn('modules', 'menu_weight', 'INTEGER DEFAULT 50');
     await db.safeAddColumn('dashboards', 'require_auth', 'INTEGER DEFAULT 1');
     await db.safeAddColumn('dashboards', 'layout', 'TEXT');
+    await db.safeAddColumn('modules', 'use_in_app', 'INTEGER DEFAULT 0');
   }
 
   // Migration: Change record_links.url to LONGTEXT for MySQL to handle long URLs

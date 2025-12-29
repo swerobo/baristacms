@@ -271,6 +271,7 @@ export interface Module {
   config?: ModuleConfig;
   menu_id?: number | null;
   parent_module_id?: number | null;
+  use_in_app?: number;
   fields?: ModuleField[];
   created_at: string;
   updated_at: string;
@@ -392,6 +393,7 @@ export const moduleService = {
     config?: ModuleConfig;
     menuId?: number | null;
     parentModuleId?: number | null;
+    useInApp?: boolean;
     isActive?: boolean;
     fields?: Array<{
       name: string;
