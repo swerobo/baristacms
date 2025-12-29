@@ -69,6 +69,11 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
 
+  // Update browser tab title when site name changes
+  useEffect(() => {
+    document.title = siteName;
+  }, [siteName]);
+
   // Close sidebar when route changes (mobile)
   useEffect(() => {
     setSidebarOpen(false);
