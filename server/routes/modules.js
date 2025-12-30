@@ -11,12 +11,15 @@ export function createModuleRoutes(db) {
   // Get all modules
   router.get('/', async (req, res) => {
     try {
+      console.log('GET /modules - fetching all modules');
       const modules = await db.all('SELECT * FROM modules WHERE is_active = 1 ORDER BY display_name');
+      console.log('GET /modules - found', modules.length, 'modules:', modules.map(m => m.name));
       modules.forEach(m => {
         if (m.config) m.config = JSON.parse(m.config);
       });
       res.json(modules);
     } catch (error) {
+      console.error('GET /modules - error:', error);
       res.status(500).json({ message: error.message });
     }
   });
@@ -149,6 +152,10 @@ export function createModuleRoutes(db) {
       res.status(201).json(module);
     } catch (error) {
       console.error('Error creating module:', error);
+      // Provide user-friendly error message for duplicate entries
+      if (error.code === 'ER_DUP_ENTRY' || error.message?.includes('UNIQUE constraint failed') || error.message?.includes('Duplicate entry')) {
+        return res.status(400).json({ message: `A module with the name "${name}" already exists. Please choose a different name.` });
+      }
       res.status(500).json({ message: error.message });
     }
   });

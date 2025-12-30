@@ -60,10 +60,13 @@ export function createMenuRoutes(db) {
   // Get menu for current user (filtered by role and group access) - returns tree structure
   router.get('/', async (req, res) => {
     try {
+      console.log('GET /menu - request received');
       const email = req.user?.email;
       const authType = req.user?.authType || 'm365';
       let userRole = 'user';
       let userId = null;
+
+      console.log('GET /menu - email:', email, 'authType:', authType);
 
       if (email) {
         // Use case-insensitive email match, filtering by auth_type for local users
@@ -73,11 +76,14 @@ export function createMenuRoutes(db) {
         } else {
           user = await db.get('SELECT id, role FROM users WHERE LOWER(email) = LOWER(?)', [email]);
         }
+        console.log('GET /menu - user lookup result:', user);
         if (user) {
           userRole = user.role;
           userId = user.id;
         }
       }
+
+      console.log('GET /menu - userRole:', userRole, 'userId:', userId);
 
       // Get all active menu items
       let items = await db.all(`
@@ -85,6 +91,7 @@ export function createMenuRoutes(db) {
         WHERE is_active = 1
         ORDER BY sort_order
       `);
+      console.log('GET /menu - menu items count:', items.length, 'items:', items.map(i => i.name));
 
       // Get all active modules with their menu_id
       let modules = await db.all(`
@@ -170,15 +177,18 @@ export function createMenuRoutes(db) {
       });
 
       // Filter items based on role
+      console.log('GET /menu - filtering items. userRole:', userRole);
       const filteredItems = items.filter(item => {
         if (!item.required_role) return true;
         if (userRole === 'admin') return true;
         if (item.required_role === 'manager' && (userRole === 'manager' || userRole === 'admin')) return true;
         return item.required_role === userRole;
       });
+      console.log('GET /menu - filtered items count:', filteredItems.length, 'names:', filteredItems.map(i => i.name));
 
       // Build tree structure
       const tree = buildMenuTree(filteredItems);
+      console.log('GET /menu - returning tree with', tree.length, 'root items:', tree.map(t => t.name));
       res.json(tree);
     } catch (error) {
       res.status(500).json({ message: error.message });

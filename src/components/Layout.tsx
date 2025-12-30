@@ -139,12 +139,14 @@ export default function Layout() {
     }
   }, []);
 
-  // Load menu and settings from database
+  // Load menu and settings from database (wait for user to be loaded first)
   useEffect(() => {
-    loadMenu();
-    loadSettings();
-    loadUnreadCounts();
-  }, [loadUnreadCounts]);
+    if (!loading && user) {
+      loadMenu();
+      loadSettings();
+      loadUnreadCounts();
+    }
+  }, [loading, user, loadUnreadCounts]);
 
   // Refresh unread counts periodically and when route changes
   useEffect(() => {
