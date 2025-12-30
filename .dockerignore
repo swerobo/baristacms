@@ -1,0 +1,53 @@
+# Dependencies
+node_modules
+server/node_modules
+
+# Build output
+dist
+build
+
+# Development files
+.git
+.gitignore
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+coverage
+*.test.js
+*.spec.js
+
+# SQLite databases (development only)
+*.db
+*.db-shm
+*.db-wal
+server/*.db
+server/*.db-shm
+server/*.db-wal
+
+# Uploads (handled by volumes)
+server/uploads/*
+!server/uploads/.gitkeep
+
+# Documentation
+*.md
+!README.md
+
+# Docker files (don't need to copy into containers)
+docker-compose*.yml
+Dockerfile*

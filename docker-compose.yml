@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: baristacms-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-baristacms2024}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-baristacms}
+      MYSQL_USER: ${MYSQL_USER:-baristacms}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-baristacms2024}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql-init:/docker-entrypoint-initdb.d
+    networks:
+      - baristacms-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-baristacms2024}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API Server
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    container_name: baristacms-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DB_TYPE: mysql
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-baristacms}
+      MYSQL_USER: ${MYSQL_USER:-baristacms}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-baristacms2024}
+      # Azure AD Auth
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
+      # Email (optional)
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
+      EMAIL_AZURE_TENANT_ID: ${EMAIL_AZURE_TENANT_ID:-}
+      EMAIL_AZURE_CLIENT_ID: ${EMAIL_AZURE_CLIENT_ID:-}
+      EMAIL_AZURE_CLIENT_SECRET: ${EMAIL_AZURE_CLIENT_SECRET:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      # Auth bypass for development
+      AUTH_BYPASS: ${AUTH_BYPASS:-false}
+      AUTH_BYPASS_EMAIL: ${AUTH_BYPASS_EMAIL:-admin@example.com}
+      AUTH_BYPASS_NAME: ${AUTH_BYPASS_NAME:-Admin User}
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+    volumes:
+      - uploads_data:/app/uploads
+    networks:
+      - baristacms-network
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  # Frontend (React/Vite served by Nginx)
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
+        VITE_AZURE_CLIENT_ID: ${VITE_AZURE_CLIENT_ID:-}
+        VITE_AZURE_TENANT_ID: ${VITE_AZURE_TENANT_ID:-}
+    container_name: baristacms-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    networks:
+      - baristacms-network
+    depends_on:
+      - backend
+
+networks:
+  baristacms-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  uploads_data:
