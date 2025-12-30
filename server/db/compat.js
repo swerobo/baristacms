@@ -18,7 +18,7 @@ import Database from 'better-sqlite3';
  */
 export function createSyncDatabase() {
   const dbType = process.env.DB_TYPE || 'sqlite';
-  const dbFile = process.env.DB_FILE || 'officetool.db';
+  const dbFile = process.env.DB_FILE || 'serverdb.db';
 
   if (dbType === 'azure') {
     console.warn('Azure SQL requires async routes. Falling back to SQLite for now.');

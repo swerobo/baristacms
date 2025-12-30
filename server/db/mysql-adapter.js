@@ -7,7 +7,7 @@
  * Environment Variables:
  *   MYSQL_HOST=localhost
  *   MYSQL_PORT=3306
- *   MYSQL_DATABASE=officetool
+ *   MYSQL_DATABASE=serverdb
  *   MYSQL_USER=root
  *   MYSQL_PASSWORD=password
  *

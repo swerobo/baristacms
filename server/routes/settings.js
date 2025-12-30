@@ -66,7 +66,7 @@ export function createSettingsRoutes(db) {
       const dbType = process.env.DB_TYPE || 'sqlite';
       const info = {
         type: dbType,
-        database: dbType === 'mysql' ? process.env.MYSQL_DATABASE : (process.env.DB_FILE || 'officetool.db'),
+        database: dbType === 'mysql' ? process.env.MYSQL_DATABASE : (process.env.DB_FILE || 'serverdb.db'),
       };
       res.json(info);
     } catch (error) {
@@ -116,7 +116,7 @@ export function createSettingsRoutes(db) {
 
       } else if (dbType === 'sqlite') {
         // SQLite backup - read the database file
-        const dbFile = process.env.DB_FILE || 'officetool.db';
+        const dbFile = process.env.DB_FILE || 'serverdb.db';
         const dbPath = path.resolve(dbFile);
 
         if (!fs.existsSync(dbPath)) {

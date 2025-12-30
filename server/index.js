@@ -1,12 +1,12 @@
 /**
- * Officetool Server
+ * My Server
  *
  * Main entry point for the API server.
  * Supports both SQLite (development) and Azure SQL (production).
  *
  * Environment Variables:
  *   DB_TYPE=sqlite (default) or DB_TYPE=azure
- *   DB_FILE=officetool.db (for SQLite)
+ *   DB_FILE=myserver.db (for SQLite)
  *   AZURE_SQL_CONNECTION_STRING=... (for Azure SQL)
  *   PORT=3001 (default)
  */

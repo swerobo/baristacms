@@ -126,8 +126,17 @@ async function saveEmailLinks(db, recordId, moduleId, html, userEmail) {
 /**
  * Send auto-response email to the sender
  */
-async function sendAutoResponseEmail(toEmail, toName, moduleName, moduleDisplayName, recordId, originalSubject) {
-  const siteName = process.env.SITE_NAME || 'OfficeTool';
+async function sendAutoResponseEmail(db, toEmail, toName, moduleName, moduleDisplayName, recordId, originalSubject) {
+  // Get site name from database settings
+  let siteName = 'System';
+  try {
+    const setting = await db.get("SELECT setting_value FROM site_settings WHERE setting_key = 'site_name'");
+    if (setting?.setting_value) {
+      siteName = setting.setting_value;
+    }
+  } catch (error) {
+    console.error('Error fetching site_name:', error.message);
+  }
   const subject = `Re: ${originalSubject} [${moduleName.toUpperCase()}-${recordId}]`;
 
   const text = `Dear ${toName || 'User'},
@@ -525,6 +534,7 @@ router.post('/process', async (req, res) => {
 
       // Send auto-response email to sender
       const autoResponseResult = await sendAutoResponseEmail(
+        db,
         email.fromAddress,
         email.fromName,
         module.name,
@@ -737,6 +747,7 @@ router.post('/process-single/:emailId', async (req, res) => {
 
     // Send auto-response email to sender
     const autoResponseResult = await sendAutoResponseEmail(
+      db,
       email.fromAddress,
       email.fromName,
       module.name,

@@ -12,7 +12,7 @@
  *   DB_TYPE=sqlite (default), azure, or mysql
  *
  * For SQLite:
- *   DB_FILE=officetool.db
+ *   DB_FILE=serverdb.db
  *
  * For Azure SQL:
  *   AZURE_SQL_CONNECTION_STRING=Server=xxx.database.windows.net;Database=xxx;User Id=xxx;Password=xxx;Encrypt=true
@@ -92,7 +92,7 @@ export async function createDatabase() {
   } else {
     // Dynamic import for SQLite adapter (avoids loading better-sqlite3 on Azure)
     const { SQLiteAdapter } = await import('./sqlite-adapter.js');
-    const dbFile = process.env.DB_FILE || 'officetool.db';
+    const dbFile = process.env.DB_FILE || 'serverdb.db';
     return new SQLiteAdapter(dbFile);
   }
 }

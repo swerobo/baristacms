@@ -9,7 +9,7 @@ import Database from 'better-sqlite3';
 import { DatabaseAdapter } from './interface.js';
 
 export class SQLiteAdapter extends DatabaseAdapter {
-  constructor(filename = 'officetool.db') {
+  constructor(filename = 'serverdb.db') {
     super();
     this.db = new Database(filename);
     this.db.pragma('journal_mode = WAL');

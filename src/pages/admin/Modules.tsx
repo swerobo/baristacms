@@ -9,7 +9,145 @@ import {
   EnvelopeIcon,
   PrinterIcon,
   ArrowUturnRightIcon,
+  HomeIcon,
+  UsersIcon,
+  Cog6ToothIcon,
+  ShieldCheckIcon,
+  WrenchScrewdriverIcon,
+  ClipboardDocumentListIcon,
+  BuildingOffice2Icon,
+  ArchiveBoxIcon,
+  DocumentTextIcon,
+  CalendarIcon,
+  ChartBarIcon,
+  FolderIcon,
+  InboxIcon,
+  TagIcon,
+  Squares2X2Icon,
+  UserGroupIcon,
+  TruckIcon,
+  BeakerIcon,
+  WrenchIcon,
+  ComputerDesktopIcon,
+  PhoneIcon,
+  MapPinIcon,
+  ClockIcon,
+  StarIcon,
+  HeartIcon,
+  BellIcon,
+  BookOpenIcon,
+  BriefcaseIcon,
+  CameraIcon,
+  ChatBubbleLeftIcon,
+  CloudIcon,
+  CurrencyDollarIcon,
+  GlobeAltIcon,
+  KeyIcon,
+  LightBulbIcon,
+  MusicalNoteIcon,
+  PaperClipIcon,
+  ShoppingCartIcon,
+  TicketIcon,
+  VideoCameraIcon,
 } from '@heroicons/react/24/outline';
+
+// Map icon names to components
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  HomeIcon,
+  CubeIcon,
+  UsersIcon,
+  UserGroupIcon,
+  Cog6ToothIcon,
+  ShieldCheckIcon,
+  WrenchScrewdriverIcon,
+  WrenchIcon,
+  ClipboardDocumentListIcon,
+  BuildingOffice2Icon,
+  ArchiveBoxIcon,
+  DocumentTextIcon,
+  CalendarIcon,
+  ChartBarIcon,
+  FolderIcon,
+  InboxIcon,
+  TagIcon,
+  Squares2X2Icon,
+  TruckIcon,
+  BeakerIcon,
+  ComputerDesktopIcon,
+  PhoneIcon,
+  MapPinIcon,
+  ClockIcon,
+  StarIcon,
+  HeartIcon,
+  BellIcon,
+  BookOpenIcon,
+  BriefcaseIcon,
+  CameraIcon,
+  ChatBubbleLeftIcon,
+  CloudIcon,
+  CurrencyDollarIcon,
+  GlobeAltIcon,
+  KeyIcon,
+  LightBulbIcon,
+  MusicalNoteIcon,
+  PaperClipIcon,
+  ShoppingCartIcon,
+  TicketIcon,
+  VideoCameraIcon,
+};
+
+// Get icon component by name
+const getIcon = (iconName?: string): React.ComponentType<{ className?: string }> | null => {
+  if (iconName && iconMap[iconName]) {
+    return iconMap[iconName];
+  }
+  return null;
+};
+
+const iconOptions = [
+  { value: '', label: 'None (default cube)' },
+  { value: 'CubeIcon', label: 'Cube' },
+  { value: 'HomeIcon', label: 'Home' },
+  { value: 'UsersIcon', label: 'Users' },
+  { value: 'UserGroupIcon', label: 'User Group' },
+  { value: 'BuildingOffice2Icon', label: 'Building' },
+  { value: 'TruckIcon', label: 'Truck/Delivery' },
+  { value: 'BeakerIcon', label: 'Beaker/Lab' },
+  { value: 'WrenchIcon', label: 'Wrench/Tool' },
+  { value: 'WrenchScrewdriverIcon', label: 'Tools' },
+  { value: 'ComputerDesktopIcon', label: 'Computer' },
+  { value: 'PhoneIcon', label: 'Phone' },
+  { value: 'DocumentTextIcon', label: 'Document' },
+  { value: 'ClipboardDocumentListIcon', label: 'Clipboard' },
+  { value: 'FolderIcon', label: 'Folder' },
+  { value: 'ArchiveBoxIcon', label: 'Archive' },
+  { value: 'InboxIcon', label: 'Inbox' },
+  { value: 'CalendarIcon', label: 'Calendar' },
+  { value: 'ClockIcon', label: 'Clock' },
+  { value: 'ChartBarIcon', label: 'Chart' },
+  { value: 'TagIcon', label: 'Tag' },
+  { value: 'MapPinIcon', label: 'Location' },
+  { value: 'Cog6ToothIcon', label: 'Settings' },
+  { value: 'ShieldCheckIcon', label: 'Shield' },
+  { value: 'KeyIcon', label: 'Key' },
+  { value: 'Squares2X2Icon', label: 'Grid' },
+  { value: 'StarIcon', label: 'Star' },
+  { value: 'HeartIcon', label: 'Heart' },
+  { value: 'BellIcon', label: 'Bell' },
+  { value: 'BookOpenIcon', label: 'Book' },
+  { value: 'BriefcaseIcon', label: 'Briefcase' },
+  { value: 'CameraIcon', label: 'Camera' },
+  { value: 'ChatBubbleLeftIcon', label: 'Chat' },
+  { value: 'CloudIcon', label: 'Cloud' },
+  { value: 'CurrencyDollarIcon', label: 'Currency' },
+  { value: 'GlobeAltIcon', label: 'Globe' },
+  { value: 'LightBulbIcon', label: 'Light Bulb' },
+  { value: 'MusicalNoteIcon', label: 'Music' },
+  { value: 'PaperClipIcon', label: 'Attachment' },
+  { value: 'ShoppingCartIcon', label: 'Shopping Cart' },
+  { value: 'TicketIcon', label: 'Ticket' },
+  { value: 'VideoCameraIcon', label: 'Video' },
+];
 import {
   moduleService,
   menuService,
@@ -305,7 +443,10 @@ export default function ModulesPage() {
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <CubeIcon className="h-6 w-6 text-blue-600" />
+                  {(() => {
+                    const IconComponent = getIcon(module.icon) || CubeIcon;
+                    return <IconComponent className="h-6 w-6 text-blue-600" />;
+                  })()}
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900">{module.display_name}</h3>
@@ -471,6 +612,31 @@ export default function ModulesPage() {
                     rows={2}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Icon</label>
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={icon}
+                      onChange={(e) => setIcon(e.target.value)}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      {iconOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="w-10 h-10 flex items-center justify-center bg-gray-100 rounded-lg">
+                      {(() => {
+                        const IconComponent = getIcon(icon) || CubeIcon;
+                        return <IconComponent className="h-6 w-6 text-blue-600" />;
+                      })()}
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Icon shown in menus and module list
+                  </p>
                 </div>
               </div>
 
