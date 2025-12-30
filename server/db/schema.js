@@ -5,6 +5,8 @@
  * Works with both SQLite and Azure SQL.
  */
 
+import bcrypt from 'bcrypt';
+
 /**
  * Initialize the database schema
  * @param {import('./interface.js').DatabaseAdapter} db
@@ -572,6 +574,18 @@ export async function seedDefaultData(db) {
       VALUES ('enable_debug_logging', 'false', 'boolean', 'Enable verbose debug logging in server console')
     `);
     console.log('Default debug logging setting added');
+  }
+
+  // Create default admin user if no users exist
+  const userCount = await db.get('SELECT COUNT(*) as count FROM users');
+  if (userCount && userCount.count === 0) {
+    console.log('Creating default admin user...');
+    const passwordHash = await bcrypt.hash('admin', 10);
+    await db.run(`
+      INSERT INTO users (email, name, role, is_active, auth_type, password_hash, must_change_password)
+      VALUES ('admin', 'Administrator', 'admin', 1, 'local', ?, 1)
+    `, [passwordHash]);
+    console.log('Default admin user created (email: admin, password: admin)');
   }
 }
 
