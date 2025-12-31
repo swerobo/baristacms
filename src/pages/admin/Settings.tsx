@@ -12,6 +12,8 @@ import {
   BugAntIcon,
   CircleStackIcon,
   ArrowDownTrayIcon,
+  CloudIcon,
+  ServerIcon,
 } from '@heroicons/react/24/outline';
 
 export default function SettingsPage() {
@@ -24,6 +26,21 @@ export default function SettingsPage() {
   const [selectedTheme, setSelectedTheme] = useState<ThemeColor>(theme);
   const [emailCheckInterval, setEmailCheckInterval] = useState('0');
   const [enableDebugLogging, setEnableDebugLogging] = useState(false);
+
+  // Azure AD / M365 Authentication settings
+  const [azureTenantId, setAzureTenantId] = useState('');
+  const [azureClientId, setAzureClientId] = useState('');
+  const [azureClientSecret, setAzureClientSecret] = useState('');
+
+  // Email configuration settings
+  const [emailProvider, setEmailProvider] = useState('');
+  const [emailFrom, setEmailFrom] = useState('');
+  const [emailInbox, setEmailInbox] = useState('');
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState('587');
+  const [smtpUser, setSmtpUser] = useState('');
+  const [smtpPassword, setSmtpPassword] = useState('');
+
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dbInfo, setDbInfo] = useState<{ type: string; database: string } | null>(null);
@@ -46,6 +63,20 @@ export default function SettingsPage() {
       }
       setEmailCheckInterval(data.email_check_interval_minutes?.value || '0');
       setEnableDebugLogging(data.enable_debug_logging?.value === 'true');
+
+      // Azure AD settings
+      setAzureTenantId(data.azure_tenant_id?.value || '');
+      setAzureClientId(data.azure_client_id?.value || '');
+      setAzureClientSecret(data.azure_client_secret?.value || '');
+
+      // Email configuration settings
+      setEmailProvider(data.email_provider?.value || '');
+      setEmailFrom(data.email_from?.value || '');
+      setEmailInbox(data.email_inbox?.value || '');
+      setSmtpHost(data.smtp_host?.value || 'smtp.office365.com');
+      setSmtpPort(data.smtp_port?.value || '587');
+      setSmtpUser(data.smtp_user?.value || '');
+      setSmtpPassword(data.smtp_password?.value || '');
     } catch (err) {
       console.error('Failed to load settings:', err);
       setError('Failed to load settings');
@@ -100,6 +131,20 @@ export default function SettingsPage() {
       await settingsService.update('theme_color', selectedTheme, 'string', 'The theme color for the application');
       await settingsService.update('email_check_interval_minutes', emailCheckInterval, 'number', 'Interval in minutes to check for new emails (0 = disabled)');
       await settingsService.update('enable_debug_logging', enableDebugLogging.toString(), 'boolean', 'Enable verbose debug logging in server console');
+
+      // Azure AD settings
+      await settingsService.update('azure_tenant_id', azureTenantId, 'string', 'Azure AD Tenant ID for M365 authentication');
+      await settingsService.update('azure_client_id', azureClientId, 'string', 'Azure AD Client/Application ID');
+      await settingsService.update('azure_client_secret', azureClientSecret, 'string', 'Azure AD Client Secret (encrypted)');
+
+      // Email configuration settings
+      await settingsService.update('email_provider', emailProvider, 'string', 'Email provider: graph or smtp');
+      await settingsService.update('email_from', emailFrom, 'string', 'Sender email address');
+      await settingsService.update('email_inbox', emailInbox, 'string', 'Inbox email address for receiving emails');
+      await settingsService.update('smtp_host', smtpHost, 'string', 'SMTP server hostname');
+      await settingsService.update('smtp_port', smtpPort, 'string', 'SMTP server port');
+      await settingsService.update('smtp_user', smtpUser, 'string', 'SMTP username');
+      await settingsService.update('smtp_password', smtpPassword, 'string', 'SMTP password (encrypted)');
 
       // Apply theme immediately
       setTheme(selectedTheme);
@@ -298,12 +343,295 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* Azure AD / M365 Authentication */}
+      <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+          <div className="flex items-center gap-2">
+            <CloudIcon className="h-5 w-5 text-gray-600" />
+            <h2 className="text-lg font-semibold text-gray-900">Azure AD / M365 Authentication</h2>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-6">
+          <p className="text-sm text-gray-500">
+            Configure Microsoft 365 / Azure AD authentication. These settings are used for M365 login and Microsoft Graph API (email sending/receiving).
+          </p>
+
+          {/* Tenant ID */}
+          <div>
+            <label htmlFor="azureTenantId" className="block text-sm font-medium text-gray-700 mb-1">
+              Tenant ID
+            </label>
+            <input
+              type="text"
+              id="azureTenantId"
+              value={azureTenantId}
+              onChange={(e) => setAzureTenantId(e.target.value)}
+              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              className="w-full max-w-lg px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent font-mono text-sm"
+              style={{ '--tw-ring-color': 'var(--theme-accent)' } as React.CSSProperties}
+            />
+            <p className="mt-1 text-sm text-gray-500">
+              Your Azure AD tenant ID (found in Azure Portal &gt; Azure Active Directory &gt; Overview).
+            </p>
+          </div>
+
+          {/* Client ID */}
+          <div>
+            <label htmlFor="azureClientId" className="block text-sm font-medium text-gray-700 mb-1">
+              Client ID (Application ID)
+            </label>
+            <input
+              type="text"
+              id="azureClientId"
+              value={azureClientId}
+              onChange={(e) => setAzureClientId(e.target.value)}
+              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              className="w-full max-w-lg px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent font-mono text-sm"
+              style={{ '--tw-ring-color': 'var(--theme-accent)' } as React.CSSProperties}
+            />
+            <p className="mt-1 text-sm text-gray-500">
+              The Application (client) ID from your Azure AD app registration.
+            </p>
+          </div>
+
+          {/* Client Secret */}
+          <div>
+            <label htmlFor="azureClientSecret" className="block text-sm font-medium text-gray-700 mb-1">
+              Client Secret
+            </label>
+            <input
+              type="password"
+              id="azureClientSecret"
+              value={azureClientSecret}
+              onChange={(e) => setAzureClientSecret(e.target.value)}
+              placeholder="Enter client secret..."
+              className="w-full max-w-lg px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
+              style={{ '--tw-ring-color': 'var(--theme-accent)' } as React.CSSProperties}
+            />
+            <p className="mt-1 text-sm text-gray-500">
+              The client secret from your Azure AD app registration. This is encrypted when stored.
+            </p>
+          </div>
+
+          {settings.azure_tenant_id?.updated_at && (
+            <div className="text-sm text-gray-500">
+              Last updated: {new Date(settings.azure_tenant_id.updated_at).toLocaleString()}
+              {settings.azure_tenant_id.updated_by && ` by ${settings.azure_tenant_id.updated_by}`}
+            </div>
+          )}
+        </div>
+
+        {/* Save Button */}
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ backgroundColor: 'var(--theme-accent)' }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--theme-accent-hover)'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--theme-accent)'}
+          >
+            {saving ? (
+              <>
+                <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <CheckIcon className="h-4 w-4" />
+                Save Settings
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Email Configuration */}
+      <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+          <div className="flex items-center gap-2">
+            <ServerIcon className="h-5 w-5 text-gray-600" />
+            <h2 className="text-lg font-semibold text-gray-900">Email Configuration</h2>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-6">
+          <p className="text-sm text-gray-500">
+            Configure email sending and receiving. Choose Microsoft Graph (recommended for M365) or SMTP.
+          </p>
+
+          {/* Email Provider */}
+          <div>
+            <label htmlFor="emailProvider" className="block text-sm font-medium text-gray-700 mb-1">
+              Email Provider
+            </label>
+            <select
+              id="emailProvider"
+              value={emailProvider}
+              onChange={(e) => setEmailProvider(e.target.value)}
+              className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
+              style={{ '--tw-ring-color': 'var(--theme-accent)' } as React.CSSProperties}
+            >
+              <option value="">Auto-detect</option>
+              <option value="graph">Microsoft Graph (OAuth2)</option>
+              <option value="smtp">SMTP</option>
+            </select>
+            <p className="mt-1 text-sm text-gray-500">
+              Microsoft Graph is recommended for Office 365. SMTP is for traditional email servers.
+            </p>
+          </div>
+
+          {/* Email From */}
+          <div>
+            <label htmlFor="emailFrom" className="block text-sm font-medium text-gray-700 mb-1">
+              From Address
+            </label>
+            <input
+              type="email"
+              id="emailFrom"
+              value={emailFrom}
+              onChange={(e) => setEmailFrom(e.target.value)}
+              placeholder="noreply@company.com"
+              className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
+              style={{ '--tw-ring-color': 'var(--theme-accent)' } as React.CSSProperties}
+            />
+            <p className="mt-1 text-sm text-gray-500">
+              The email address used to send emails.
+            </p>
+          </div>
+
+          {/* Email Inbox */}
+          <div>
+            <label htmlFor="emailInbox" className="block text-sm font-medium text-gray-700 mb-1">
+              Inbox Address (optional)
+            </label>
+            <input
+              type="email"
+              id="emailInbox"
+              value={emailInbox}
+              onChange={(e) => setEmailInbox(e.target.value)}
+              placeholder="inbox@company.com"
+              className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
+              style={{ '--tw-ring-color': 'var(--theme-accent)' } as React.CSSProperties}
+            />
+            <p className="mt-1 text-sm text-gray-500">
+              The email address to monitor for incoming emails. Defaults to From Address if not set.
+            </p>
+          </div>
+
+          {/* SMTP Settings */}
+          {(emailProvider === 'smtp' || emailProvider === '') && (
+            <div className="border-t border-gray-200 pt-6">
+              <h3 className="text-sm font-semibold text-gray-700 mb-4">SMTP Settings</h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+                {/* SMTP Host */}
+                <div>
+                  <label htmlFor="smtpHost" className="block text-sm font-medium text-gray-700 mb-1">
+                    SMTP Host
+                  </label>
+                  <input
+                    type="text"
+                    id="smtpHost"
+                    value={smtpHost}
+                    onChange={(e) => setSmtpHost(e.target.value)}
+                    placeholder="smtp.office365.com"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
+                    style={{ '--tw-ring-color': 'var(--theme-accent)' } as React.CSSProperties}
+                  />
+                </div>
+
+                {/* SMTP Port */}
+                <div>
+                  <label htmlFor="smtpPort" className="block text-sm font-medium text-gray-700 mb-1">
+                    SMTP Port
+                  </label>
+                  <input
+                    type="text"
+                    id="smtpPort"
+                    value={smtpPort}
+                    onChange={(e) => setSmtpPort(e.target.value)}
+                    placeholder="587"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
+                    style={{ '--tw-ring-color': 'var(--theme-accent)' } as React.CSSProperties}
+                  />
+                </div>
+
+                {/* SMTP User */}
+                <div>
+                  <label htmlFor="smtpUser" className="block text-sm font-medium text-gray-700 mb-1">
+                    SMTP Username
+                  </label>
+                  <input
+                    type="text"
+                    id="smtpUser"
+                    value={smtpUser}
+                    onChange={(e) => setSmtpUser(e.target.value)}
+                    placeholder="user@company.com"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
+                    style={{ '--tw-ring-color': 'var(--theme-accent)' } as React.CSSProperties}
+                  />
+                </div>
+
+                {/* SMTP Password */}
+                <div>
+                  <label htmlFor="smtpPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                    SMTP Password
+                  </label>
+                  <input
+                    type="password"
+                    id="smtpPassword"
+                    value={smtpPassword}
+                    onChange={(e) => setSmtpPassword(e.target.value)}
+                    placeholder="Enter password..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:border-transparent"
+                    style={{ '--tw-ring-color': 'var(--theme-accent)' } as React.CSSProperties}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {settings.email_from?.updated_at && (
+            <div className="text-sm text-gray-500">
+              Last updated: {new Date(settings.email_from.updated_at).toLocaleString()}
+              {settings.email_from.updated_by && ` by ${settings.email_from.updated_by}`}
+            </div>
+          )}
+        </div>
+
+        {/* Save Button */}
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ backgroundColor: 'var(--theme-accent)' }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--theme-accent-hover)'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--theme-accent)'}
+          >
+            {saving ? (
+              <>
+                <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <CheckIcon className="h-4 w-4" />
+                Save Settings
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
       {/* Email Settings */}
       <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
           <div className="flex items-center gap-2">
             <EnvelopeIcon className="h-5 w-5 text-gray-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Email Settings</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Email Processing</h2>
           </div>
         </div>
 

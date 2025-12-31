@@ -4,25 +4,90 @@ import jwksClient from 'jwks-rsa';
 // Local JWT configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret-in-production';
 
-// Microsoft Entra (Azure AD) configuration
-const TENANT_ID = process.env.AZURE_TENANT_ID || '7388d115-29cd-4cde-b8f1-78559e9476ec';
-const CLIENT_ID = process.env.AZURE_CLIENT_ID || '780ae31c-468a-45ba-8a5a-976ecbe1063d';
-const JWKS_URI = `https://login.microsoftonline.com/${TENANT_ID}/discovery/v2.0/keys`;
+// Default Azure AD configuration from environment
+const DEFAULT_TENANT_ID = process.env.AZURE_TENANT_ID || '7388d115-29cd-4cde-b8f1-78559e9476ec';
+const DEFAULT_CLIENT_ID = process.env.AZURE_CLIENT_ID || '780ae31c-468a-45ba-8a5a-976ecbe1063d';
 
-// Function to create JWKS client
-function createJwksClient() {
-  return jwksClient({
-    jwksUri: JWKS_URI,
-    cache: true,
-    cacheMaxAge: 600000, // 10 minutes
-    cacheMaxEntries: 5,
-    rateLimit: true,
-    jwksRequestsPerMinute: 10,
-  });
+// Cache for database config
+let configCache = {
+  tenantId: null,
+  clientId: null,
+  lastFetch: 0,
+  cacheTTL: 60000, // 1 minute cache
+};
+
+// Database reference (set by initAuthWithDatabase)
+let dbInstance = null;
+
+/**
+ * Initialize auth module with database connection
+ * Call this after database is connected
+ */
+export function initAuthWithDatabase(db) {
+  dbInstance = db;
+  console.log('Auth module initialized with database connection');
 }
 
-// JWKS client instance
-let client = createJwksClient();
+/**
+ * Get Azure config from database or fallback to environment
+ */
+async function getAzureConfig() {
+  const now = Date.now();
+
+  // Return cached config if still valid
+  if (configCache.tenantId && configCache.clientId && (now - configCache.lastFetch) < configCache.cacheTTL) {
+    return { tenantId: configCache.tenantId, clientId: configCache.clientId };
+  }
+
+  // Try to fetch from database
+  if (dbInstance) {
+    try {
+      const tenantIdSetting = await dbInstance.get("SELECT setting_value FROM site_settings WHERE setting_key = 'azure_tenant_id'");
+      const clientIdSetting = await dbInstance.get("SELECT setting_value FROM site_settings WHERE setting_key = 'azure_client_id'");
+
+      if (tenantIdSetting?.setting_value || clientIdSetting?.setting_value) {
+        configCache.tenantId = tenantIdSetting?.setting_value || DEFAULT_TENANT_ID;
+        configCache.clientId = clientIdSetting?.setting_value || DEFAULT_CLIENT_ID;
+        configCache.lastFetch = now;
+        return { tenantId: configCache.tenantId, clientId: configCache.clientId };
+      }
+    } catch (error) {
+      console.warn('Failed to fetch Azure config from database:', error.message);
+    }
+  }
+
+  // Fallback to environment/defaults
+  return { tenantId: DEFAULT_TENANT_ID, clientId: DEFAULT_CLIENT_ID };
+}
+
+// JWKS clients cache by tenant
+const jwksClients = new Map();
+
+// Function to create or get JWKS client for a tenant
+function getJwksClient(tenantId) {
+  if (!jwksClients.has(tenantId)) {
+    const jwksUri = `https://login.microsoftonline.com/${tenantId}/discovery/v2.0/keys`;
+    jwksClients.set(tenantId, jwksClient({
+      jwksUri,
+      cache: true,
+      cacheMaxAge: 600000, // 10 minutes
+      cacheMaxEntries: 5,
+      rateLimit: true,
+      jwksRequestsPerMinute: 10,
+    }));
+  }
+  return jwksClients.get(tenantId);
+}
+
+// Legacy: single client instance for backwards compatibility
+let client = jwksClient({
+  jwksUri: `https://login.microsoftonline.com/${DEFAULT_TENANT_ID}/discovery/v2.0/keys`,
+  cache: true,
+  cacheMaxAge: 600000,
+  cacheMaxEntries: 5,
+  rateLimit: true,
+  jwksRequestsPerMinute: 10,
+});
 
 // Get signing key from JWKS
 function getSigningKey(header, callback) {
@@ -42,19 +107,33 @@ function resetClient() {
   console.log('JWKS client recreated with fresh cache');
 }
 
-// Verify Microsoft Entra token
-function verifyTokenOnce(token) {
+// Verify Microsoft Entra token with dynamic config
+async function verifyTokenOnce(token, config) {
+  const { tenantId, clientId } = config || await getAzureConfig();
+  const jwksClientInstance = getJwksClient(tenantId);
+
+  const getKey = (header, callback) => {
+    jwksClientInstance.getSigningKey(header.kid, (err, key) => {
+      if (err) {
+        callback(err, null);
+        return;
+      }
+      const signingKey = key.getPublicKey();
+      callback(null, signingKey);
+    });
+  };
+
   return new Promise((resolve, reject) => {
     jwt.verify(
       token,
-      getSigningKey,
+      getKey,
       {
         algorithms: ['RS256'],
         // Accept tokens for our app OR Graph API (for flexibility)
-        audience: [CLIENT_ID, `api://${CLIENT_ID}`, '00000003-0000-0000-c000-000000000000'],
+        audience: [clientId, `api://${clientId}`, '00000003-0000-0000-c000-000000000000'],
         issuer: [
-          `https://login.microsoftonline.com/${TENANT_ID}/v2.0`,
-          `https://sts.windows.net/${TENANT_ID}/`,
+          `https://login.microsoftonline.com/${tenantId}/v2.0`,
+          `https://sts.windows.net/${tenantId}/`,
         ],
       },
       (err, decoded) => {
@@ -106,6 +185,10 @@ async function verifyMsalToken(token) {
     throw new Error('Invalid token format');
   }
 
+  // Get current Azure config
+  const config = await getAzureConfig();
+  const { tenantId } = config;
+
   // Graph API tokens have a 'nonce' in header and use different signing
   // For these, we validate issuer/tenant but skip signature verification
   const isGraphToken = decoded.header.nonce !== undefined;
@@ -114,7 +197,7 @@ async function verifyMsalToken(token) {
     console.log('Graph API token detected, validating issuer only');
 
     // Validate issuer contains our tenant
-    const validIssuer = decoded.payload.iss?.includes(TENANT_ID);
+    const validIssuer = decoded.payload.iss?.includes(tenantId);
     if (!validIssuer) {
       throw new Error('Invalid token issuer');
     }
@@ -130,13 +213,13 @@ async function verifyMsalToken(token) {
 
   // For regular tokens, do full verification
   try {
-    return await verifyTokenOnce(token);
+    return await verifyTokenOnce(token, config);
   } catch (err) {
-    // If signature is invalid, reset client and retry once
+    // If signature is invalid, clear cached client and retry once
     if (err.message === 'invalid signature') {
-      console.log('Invalid signature detected, resetting JWKS client and retrying...');
-      resetClient();
-      return await verifyTokenOnce(token);
+      console.log('Invalid signature detected, clearing JWKS cache and retrying...');
+      jwksClients.delete(tenantId);
+      return await verifyTokenOnce(token, config);
     }
     throw err;
   }

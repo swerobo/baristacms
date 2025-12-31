@@ -4,6 +4,10 @@
  * Sends emails using Microsoft Graph API with OAuth2 (recommended for Office 365).
  * Falls back to SMTP with nodemailer if Graph API is not configured.
  *
+ * Configuration can be set via:
+ * 1. Database settings (preferred - can be changed via Admin UI)
+ * 2. Environment variables (fallback)
+ *
  * For Microsoft Graph API (OAuth2):
  *   EMAIL_PROVIDER=graph
  *   AZURE_TENANT_ID=your-tenant-id
@@ -19,8 +23,103 @@
  *   SMTP_PASSWORD=your-password
  */
 
+import { decrypt } from '../utils/crypto.js';
+
 let ClientSecretCredential, Client, TokenCredentialAuthenticationProvider;
 let nodemailer;
+
+// Database reference (set by initEmailWithDatabase)
+let dbInstance = null;
+
+// Cache for database config
+let configCache = {
+  data: null,
+  lastFetch: 0,
+  cacheTTL: 60000, // 1 minute cache
+};
+
+/**
+ * Initialize email module with database connection
+ * Call this after database is connected
+ */
+export function initEmailWithDatabase(db) {
+  dbInstance = db;
+  console.log('Email service initialized with database connection');
+}
+
+/**
+ * Get email configuration from database or fallback to environment
+ */
+async function getEmailConfigFromDB() {
+  const now = Date.now();
+
+  // Return cached config if still valid
+  if (configCache.data && (now - configCache.lastFetch) < configCache.cacheTTL) {
+    return configCache.data;
+  }
+
+  const config = {
+    provider: process.env.EMAIL_PROVIDER,
+    azureTenantId: process.env.EMAIL_AZURE_TENANT_ID || process.env.AZURE_TENANT_ID,
+    azureClientId: process.env.EMAIL_AZURE_CLIENT_ID || process.env.AZURE_CLIENT_ID,
+    azureClientSecret: process.env.EMAIL_AZURE_CLIENT_SECRET || process.env.AZURE_CLIENT_SECRET,
+    emailFrom: process.env.EMAIL_FROM,
+    emailInbox: process.env.EMAIL_INBOX,
+    smtpHost: process.env.SMTP_HOST || 'smtp.office365.com',
+    smtpPort: process.env.SMTP_PORT || '587',
+    smtpUser: process.env.SMTP_USER,
+    smtpPassword: process.env.SMTP_PASSWORD,
+  };
+
+  // Try to fetch from database
+  if (dbInstance) {
+    try {
+      const settings = await dbInstance.all("SELECT setting_key, setting_value FROM site_settings WHERE setting_key LIKE 'email_%' OR setting_key LIKE 'azure_%' OR setting_key LIKE 'smtp_%'");
+
+      const dbSettings = {};
+      settings.forEach(s => { dbSettings[s.setting_key] = s.setting_value; });
+
+      // Override with database values if present
+      if (dbSettings.email_provider) config.provider = dbSettings.email_provider;
+      if (dbSettings.azure_tenant_id) config.azureTenantId = dbSettings.azure_tenant_id;
+      if (dbSettings.azure_client_id) config.azureClientId = dbSettings.azure_client_id;
+      if (dbSettings.azure_client_secret) {
+        // Decrypt the client secret
+        const decrypted = decrypt(dbSettings.azure_client_secret);
+        if (decrypted) config.azureClientSecret = decrypted;
+      }
+      if (dbSettings.email_from) config.emailFrom = dbSettings.email_from;
+      if (dbSettings.email_inbox) config.emailInbox = dbSettings.email_inbox;
+      if (dbSettings.smtp_host) config.smtpHost = dbSettings.smtp_host;
+      if (dbSettings.smtp_port) config.smtpPort = dbSettings.smtp_port;
+      if (dbSettings.smtp_user) config.smtpUser = dbSettings.smtp_user;
+      if (dbSettings.smtp_password) {
+        // Decrypt the password
+        const decrypted = decrypt(dbSettings.smtp_password);
+        if (decrypted) config.smtpPassword = decrypted;
+      }
+
+      configCache.data = config;
+      configCache.lastFetch = now;
+    } catch (error) {
+      console.warn('Failed to fetch email config from database:', error.message);
+    }
+  }
+
+  return config;
+}
+
+/**
+ * Clear the email configuration cache
+ * Call this when settings are updated
+ */
+export function clearEmailConfigCache() {
+  configCache.data = null;
+  configCache.lastFetch = 0;
+  // Also reset the graph client so it uses new credentials
+  graphClient = null;
+  transporter = null;
+}
 
 // Lazy load dependencies to prevent crashes if packages are missing
 async function loadDependencies() {
@@ -71,18 +170,17 @@ async function getGraphClient() {
     return null;
   }
 
-  // Use EMAIL_AZURE_* for email-specific config, fallback to AZURE_* for backwards compatibility
-  const tenantId = process.env.EMAIL_AZURE_TENANT_ID || process.env.AZURE_TENANT_ID;
-  const clientId = process.env.EMAIL_AZURE_CLIENT_ID || process.env.AZURE_CLIENT_ID;
-  const clientSecret = process.env.EMAIL_AZURE_CLIENT_SECRET || process.env.AZURE_CLIENT_SECRET;
+  // Get config from database or environment
+  const config = await getEmailConfigFromDB();
+  const { azureTenantId, azureClientId, azureClientSecret } = config;
 
-  if (!tenantId || !clientId || !clientSecret) {
-    console.warn('Microsoft Graph not configured: EMAIL_AZURE_TENANT_ID, EMAIL_AZURE_CLIENT_ID, EMAIL_AZURE_CLIENT_SECRET required');
+  if (!azureTenantId || !azureClientId || !azureClientSecret) {
+    console.warn('Microsoft Graph not configured: azure_tenant_id, azure_client_id, azure_client_secret required');
     return null;
   }
 
   try {
-    const credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
+    const credential = new ClientSecretCredential(azureTenantId, azureClientId, azureClientSecret);
     const authProvider = new TokenCredentialAuthenticationProvider(credential, {
       scopes: ['https://graph.microsoft.com/.default'],
     });
@@ -107,15 +205,16 @@ async function sendEmailViaGraph({ to, subject, text, html, cc, bcc, replyTo }) 
   if (!client) {
     return {
       success: false,
-      error: 'Microsoft Graph not configured. Please set EMAIL_AZURE_TENANT_ID, EMAIL_AZURE_CLIENT_ID, EMAIL_AZURE_CLIENT_SECRET.',
+      error: 'Microsoft Graph not configured. Please configure Azure settings in Admin > Settings.',
     };
   }
 
-  const fromAddress = process.env.EMAIL_FROM;
+  const config = await getEmailConfigFromDB();
+  const fromAddress = config.emailFrom;
   if (!fromAddress) {
     return {
       success: false,
-      error: 'EMAIL_FROM not configured. Please set the sender email address.',
+      error: 'Email From address not configured. Please set it in Admin > Settings.',
     };
   }
 
@@ -180,12 +279,13 @@ async function verifyGraphConfig() {
     };
   }
 
-  const fromAddress = process.env.EMAIL_FROM;
+  const config = await getEmailConfigFromDB();
+  const fromAddress = config.emailFrom;
   if (!fromAddress) {
     return {
       configured: true,
       verified: false,
-      error: 'EMAIL_FROM not set',
+      error: 'Email From address not set',
     };
   }
 
@@ -225,13 +325,15 @@ async function getTransporter() {
     return null;
   }
 
-  const host = process.env.SMTP_HOST || 'smtp.office365.com';
-  const port = parseInt(process.env.SMTP_PORT || '587', 10);
-  const user = process.env.SMTP_USER;
-  const password = process.env.SMTP_PASSWORD;
+  // Get config from database or environment
+  const config = await getEmailConfigFromDB();
+  const host = config.smtpHost || 'smtp.office365.com';
+  const port = parseInt(config.smtpPort || '587', 10);
+  const user = config.smtpUser;
+  const password = config.smtpPassword;
 
   if (!user || !password) {
-    console.warn('SMTP not configured: SMTP_USER and SMTP_PASSWORD required');
+    console.warn('SMTP not configured: smtp_user and smtp_password required');
     return null;
   }
 
@@ -261,11 +363,12 @@ async function sendEmailViaSMTP({ to, subject, text, html, cc, bcc, replyTo }) {
   if (!transport) {
     return {
       success: false,
-      error: 'SMTP not configured. Please set SMTP_USER and SMTP_PASSWORD.',
+      error: 'SMTP not configured. Please configure SMTP settings in Admin > Settings.',
     };
   }
 
-  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+  const config = await getEmailConfigFromDB();
+  const from = config.emailFrom || config.smtpUser;
 
   try {
     const mailOptions = { from, to, subject, text };
@@ -323,16 +426,17 @@ async function verifySMTPConfig() {
 /**
  * Get the configured email provider
  */
-function getProvider() {
-  const provider = process.env.EMAIL_PROVIDER?.toLowerCase();
+async function getProvider() {
+  const config = await getEmailConfigFromDB();
+  const provider = config.provider?.toLowerCase();
 
   // Explicit provider selection
   if (provider === 'graph') return 'graph';
   if (provider === 'smtp') return 'smtp';
 
   // Auto-detect based on available config
-  if ((process.env.EMAIL_AZURE_CLIENT_SECRET || process.env.AZURE_CLIENT_SECRET) && process.env.EMAIL_FROM) return 'graph';
-  if (process.env.SMTP_USER && process.env.SMTP_PASSWORD) return 'smtp';
+  if (config.azureClientSecret && config.emailFrom) return 'graph';
+  if (config.smtpUser && config.smtpPassword) return 'smtp';
 
   return null;
 }
@@ -341,7 +445,7 @@ function getProvider() {
  * Send an email using the configured provider
  */
 export async function sendEmail(options) {
-  const provider = getProvider();
+  const provider = await getProvider();
 
   if (provider === 'graph') {
     return sendEmailViaGraph(options);
@@ -350,7 +454,7 @@ export async function sendEmail(options) {
   } else {
     return {
       success: false,
-      error: 'No email provider configured. Set EMAIL_PROVIDER=graph or EMAIL_PROVIDER=smtp with required credentials.',
+      error: 'No email provider configured. Please configure email settings in Admin > Settings.',
     };
   }
 }
@@ -359,7 +463,7 @@ export async function sendEmail(options) {
  * Verify email configuration
  */
 export async function verifyEmailConfig() {
-  const provider = getProvider();
+  const provider = await getProvider();
 
   if (provider === 'graph') {
     return verifyGraphConfig();
@@ -369,7 +473,7 @@ export async function verifyEmailConfig() {
     return {
       configured: false,
       verified: false,
-      error: 'No email provider configured',
+      error: 'No email provider configured. Please configure email settings in Admin > Settings.',
     };
   }
 }
@@ -381,12 +485,12 @@ export async function verifyEmailConfig() {
  * Requires Mail.Read permission in Azure AD
  */
 export async function fetchInboxEmails(options = {}) {
-  const provider = getProvider();
+  const provider = await getProvider();
 
   if (provider !== 'graph') {
     return {
       success: false,
-      error: 'Email inbox only supported with Microsoft Graph (EMAIL_PROVIDER=graph)',
+      error: 'Email inbox only supported with Microsoft Graph provider',
       emails: [],
     };
   }
@@ -400,11 +504,12 @@ export async function fetchInboxEmails(options = {}) {
     };
   }
 
-  const inboxAddress = process.env.EMAIL_INBOX || process.env.EMAIL_FROM;
+  const config = await getEmailConfigFromDB();
+  const inboxAddress = config.emailInbox || config.emailFrom;
   if (!inboxAddress) {
     return {
       success: false,
-      error: 'EMAIL_INBOX or EMAIL_FROM not configured',
+      error: 'Email inbox address not configured',
       emails: [],
     };
   }
@@ -458,7 +563,8 @@ export async function markEmailAsRead(emailId) {
     return { success: false, error: 'Microsoft Graph not configured' };
   }
 
-  const inboxAddress = process.env.EMAIL_INBOX || process.env.EMAIL_FROM;
+  const config = await getEmailConfigFromDB();
+  const inboxAddress = config.emailInbox || config.emailFrom;
 
   try {
     await client.api(`/users/${inboxAddress}/messages/${emailId}`)
@@ -499,7 +605,8 @@ export async function getEmailAttachments(emailId) {
     return { success: false, error: 'Microsoft Graph not configured', attachments: [] };
   }
 
-  const inboxAddress = process.env.EMAIL_INBOX || process.env.EMAIL_FROM;
+  const config = await getEmailConfigFromDB();
+  const inboxAddress = config.emailInbox || config.emailFrom;
   console.log(`[Email Service] Using inbox address: ${inboxAddress}`);
 
   try {
@@ -552,7 +659,8 @@ export async function downloadAttachment(emailId, attachmentId) {
     return { success: false, error: 'Microsoft Graph not configured' };
   }
 
-  const inboxAddress = process.env.EMAIL_INBOX || process.env.EMAIL_FROM;
+  const config = await getEmailConfigFromDB();
+  const inboxAddress = config.emailInbox || config.emailFrom;
 
   try {
     const apiUrl = `/users/${inboxAddress}/messages/${emailId}/attachments/${attachmentId}`;
@@ -593,6 +701,8 @@ export function isImageContentType(contentType) {
 }
 
 export default {
+  initEmailWithDatabase,
+  clearEmailConfigCache,
   sendEmail,
   verifyEmailConfig,
   fetchInboxEmails,

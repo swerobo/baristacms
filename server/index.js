@@ -16,7 +16,7 @@ import cors from 'cors';
 import { mkdirSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { authenticateWithBypass } from './auth.js';
+import { authenticateWithBypass, initAuthWithDatabase } from './auth.js';
 import { createDatabase, getDatabaseType } from './db/index.js';
 import { initializeSchema, seedDefaultData } from './db/schema.js';
 
@@ -34,6 +34,7 @@ import { createBasicPagesRoutes } from './routes/basic-pages.js';
 import { createGroupRoutes } from './routes/groups.js';
 import { createLocalAuthRoutes } from './routes/localAuth.js';
 import { startEmailProcessor } from './services/emailProcessor.js';
+import { initEmailWithDatabase } from './services/email.js';
 import emailInboxRoutes from './routes/emailInbox.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -75,6 +76,10 @@ app.get('/api/health', (req, res) => {
 let publicSettingsHandler = (req, res) => res.status(503).json({ message: 'Server starting...' });
 app.get('/api/settings/public/:key', (req, res) => publicSettingsHandler(req, res));
 
+// Auth config endpoint (public, no auth required) - for frontend MSAL initialization
+let authConfigHandler = (req, res) => res.status(503).json({ message: 'Server starting...' });
+app.get('/api/settings/auth-config', (req, res) => authConfigHandler(req, res));
+
 // Local auth routes (no auth required) - configured after database connection
 let localAuthRouter = null;
 app.use('/api/auth', (req, res, next) => {
@@ -110,6 +115,12 @@ async function startServer() {
     app.locals.db = db;
     app.locals.uploadsDir = uploadsDir;
 
+    // Initialize auth module with database connection for dynamic Azure config
+    initAuthWithDatabase(db);
+
+    // Initialize email service with database connection for dynamic config
+    initEmailWithDatabase(db);
+
     // Configure local auth routes now that db is available
     localAuthRouter = createLocalAuthRoutes(db);
 
@@ -127,6 +138,22 @@ async function startServer() {
         }
         res.json({ value: setting.setting_value, type: setting.setting_type });
       } catch (error) {
+        res.status(500).json({ message: error.message });
+      }
+    };
+
+    // Configure auth config handler for frontend MSAL initialization
+    authConfigHandler = async (req, res) => {
+      try {
+        const tenantId = await db.get("SELECT setting_value FROM site_settings WHERE setting_key = 'azure_tenant_id'");
+        const clientId = await db.get("SELECT setting_value FROM site_settings WHERE setting_key = 'azure_client_id'");
+
+        res.json({
+          azure_tenant_id: tenantId?.setting_value || process.env.AZURE_TENANT_ID || '',
+          azure_client_id: clientId?.setting_value || process.env.AZURE_CLIENT_ID || '',
+        });
+      } catch (error) {
+        console.error('Failed to get auth config:', error);
         res.status(500).json({ message: error.message });
       }
     };

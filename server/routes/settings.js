@@ -8,11 +8,32 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
+import { encrypt, decrypt } from '../utils/crypto.js';
+
+// Settings that should be encrypted when stored
+const SENSITIVE_KEYS = ['azure_client_secret', 'email_password', 'smtp_password'];
 
 const execAsync = promisify(exec);
 
 export function createSettingsRoutes(db) {
   const router = Router();
+
+  // Get Azure auth config for frontend (public endpoint - no auth required)
+  // Only returns non-sensitive Azure config needed for MSAL initialization
+  router.get('/auth-config', async (req, res) => {
+    try {
+      const tenantId = await db.get("SELECT setting_value FROM site_settings WHERE setting_key = 'azure_tenant_id'");
+      const clientId = await db.get("SELECT setting_value FROM site_settings WHERE setting_key = 'azure_client_id'");
+
+      res.json({
+        azure_tenant_id: tenantId?.setting_value || process.env.AZURE_TENANT_ID || '',
+        azure_client_id: clientId?.setting_value || process.env.AZURE_CLIENT_ID || '',
+      });
+    } catch (error) {
+      console.error('Failed to get auth config:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
 
   // Get public setting (no auth required) - only specific settings are allowed
   router.get('/public/:key', async (req, res) => {
@@ -44,8 +65,14 @@ export function createSettingsRoutes(db) {
       // Convert to key-value object for easier frontend use
       const settingsObj = {};
       settings.forEach(s => {
+        // Mask sensitive values - show '********' instead of actual value
+        let displayValue = s.setting_value;
+        if (SENSITIVE_KEYS.includes(s.setting_key) && displayValue) {
+          displayValue = '********';
+        }
+
         settingsObj[s.setting_key] = {
-          value: s.setting_value,
+          value: displayValue,
           type: s.setting_type,
           description: s.description,
           updated_at: s.updated_at,
@@ -198,9 +225,23 @@ export function createSettingsRoutes(db) {
       const updatedBy = req.user?.email;
 
       for (const [key, data] of Object.entries(settings)) {
-        const value = typeof data === 'object' ? data.value : data;
+        let value = typeof data === 'object' ? data.value : data;
         const type = typeof data === 'object' ? data.type : 'string';
         const description = typeof data === 'object' ? data.description : null;
+
+        // Encrypt sensitive settings before storing
+        if (SENSITIVE_KEYS.includes(key) && value) {
+          // Only encrypt if value is not already encrypted (doesn't contain ':')
+          // This handles the case where the client sends back masked/unchanged values
+          if (!value.includes(':') && value !== '********') {
+            value = encrypt(value);
+          }
+        }
+
+        // Skip update if value is masked (unchanged sensitive field)
+        if (value === '********') {
+          continue;
+        }
 
         const existing = await db.get('SELECT * FROM site_settings WHERE setting_key = ?', [key]);
 
