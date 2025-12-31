@@ -41,7 +41,9 @@ services:
       # Azure AD Auth
       AZURE_TENANT_ID: ${AZURE_TENANT_ID:-}
       AZURE_CLIENT_ID: ${AZURE_CLIENT_ID:-}
-      # Email (optional)
+      # Encryption key for sensitive database settings (32 characters)
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-change-this-32-char-key-in-prod!}
+      # Email (optional - can now be configured via Admin Settings UI)
       EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
       EMAIL_AZURE_TENANT_ID: ${EMAIL_AZURE_TENANT_ID:-}
       EMAIL_AZURE_CLIENT_ID: ${EMAIL_AZURE_CLIENT_ID:-}

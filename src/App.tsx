@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { MsalProvider, useMsal } from '@azure/msal-react';
 import { PublicClientApplication, EventType, InteractionStatus } from '@azure/msal-browser';
